@@ -115,22 +115,7 @@ runs:
         fi
 
         vuln_count="$(
-          python - "$json_report" <<'PY'
-import json
-import sys
-path = sys.argv[1]
-
-with open(path, "r", encoding="utf-8") as fh:
-    data = json.load(fh)
-
-total = 0
-for dep in data.get("dependencies", []):
-    if not isinstance(dep, dict):
-        continue
-    total += len(dep.get("vulns", []) or dep.get("vulnerabilities", []) or [])
-
-print(total)
-PY
+          python -c "import json, sys; data = json.load(open(sys.argv[1], encoding='utf-8')); print(sum(len(dep.get('vulns', []) or dep.get('vulnerabilities', []) or []) for dep in data.get('dependencies', []) if isinstance(dep, dict)))" "$json_report"
         )"
 
         if [ "$vuln_count" -gt 0 ]; then
@@ -146,19 +131,9 @@ PY
 
         if [ "${{ inputs.format }}" = "json" ]; then
           if [ -n "${{ inputs.report_file }}" ]; then
-            python - "$json_report" "${{ inputs.report_file }}" <<'PY'
-import shutil
-import sys
-
-shutil.copyfile(sys.argv[1], sys.argv[2])
-PY
+            cp "$json_report" "${{ inputs.report_file }}"
           else
-            python - "$json_report" <<'PY'
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as fh:
-    sys.stdout.write(fh.read())
-PY
+            sed -n '1,$p' "$json_report"
           fi
         else
           rendered_report="$(mktemp)"
@@ -173,19 +148,9 @@ PY
           fi
 
           if [ -n "${{ inputs.report_file }}" ]; then
-            python - "$rendered_report" "${{ inputs.report_file }}" <<'PY'
-import shutil
-import sys
-
-shutil.copyfile(sys.argv[1], sys.argv[2])
-PY
+            cp "$rendered_report" "${{ inputs.report_file }}"
           else
-            python - "$rendered_report" <<'PY'
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as fh:
-    sys.stdout.write(fh.read())
-PY
+            sed -n '1,$p' "$rendered_report"
           fi
         fi
 
