@@ -1,0 +1,206 @@
+name: "pip-audit scan"
+description: "Run pip-audit on a Python project"
+
+outputs:
+  vuln_count:
+    description: "Number of vulnerabilities found"
+    value: ${{ steps.audit.outputs.vuln_count }}
+  scan_status:
+    description: "Final scan status"
+    value: ${{ steps.audit.outputs.scan_status }}
+
+inputs:
+  python_version:
+    description: "Python version to use"
+    required: false
+    default: "3.11"
+
+  pip_audit_version:
+    description: "Exact pip-audit version to install"
+    required: false
+    default: "2.7.3"
+
+  working_directory:
+    description: "Directory containing the dependency file"
+    required: false
+    default: "."
+
+  requirements_file:
+    description: "Requirements file path relative to working_directory"
+    required: false
+    default: "requirements.txt"
+
+  format:
+    description: "pip-audit output format"
+    required: false
+    default: "columns"
+
+  report_file:
+    description: "Optional file path to write the scan report"
+    required: false
+    default: ""
+
+  fail_on_vuln:
+    description: "Fail the action if vulnerabilities are found"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python_version }}
+
+    - name: Install pip-audit
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        set -euo pipefail
+        python -m pip install --upgrade pip
+        python -m pip install "pip-audit==${{ inputs.pip_audit_version }}"
+
+    - name: Validate inputs
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        set -euo pipefail
+        test -f "${{ inputs.requirements_file }}"
+
+        case "${{ inputs.format }}" in
+          columns|json|cyclonedx-json|cyclonedx-xml|markdown)
+            ;;
+          *)
+            echo "Unsupported format: ${{ inputs.format }}" >&2
+            exit 1
+            ;;
+        esac
+
+        case "${{ inputs.fail_on_vuln }}" in
+          true|false)
+            ;;
+          *)
+            echo "Unsupported fail_on_vuln value: ${{ inputs.fail_on_vuln }}. Use true or false." >&2
+            exit 1
+            ;;
+        esac
+
+    - name: Run pip-audit
+      id: audit
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        set -euo pipefail
+
+        json_report="$(mktemp)"
+        rendered_report=""
+
+        cleanup() {
+          rm -f "$json_report"
+          if [ -n "$rendered_report" ]; then
+            rm -f "$rendered_report"
+          fi
+        }
+        trap cleanup EXIT
+
+        set +e
+        python -m pip_audit -r "${{ inputs.requirements_file }}" --format json --output "$json_report"
+        audit_exit_code=$?
+        set -e
+
+        if [ ! -s "$json_report" ]; then
+          echo "pip-audit did not produce a JSON report." >&2
+          exit "${audit_exit_code:-1}"
+        fi
+
+        vuln_count="$(
+          python - "$json_report" <<'PY'
+import json
+import sys
+path = sys.argv[1]
+
+with open(path, "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+total = 0
+for dep in data.get("dependencies", []):
+    if not isinstance(dep, dict):
+        continue
+    total += len(dep.get("vulns", []) or dep.get("vulnerabilities", []) or [])
+
+print(total)
+PY
+        )"
+
+        if [ "$vuln_count" -gt 0 ]; then
+          scan_status="vulnerabilities_found"
+        elif [ "$audit_exit_code" -eq 0 ]; then
+          scan_status="clean"
+        else
+          scan_status="scanner_error"
+        fi
+
+        echo "vuln_count=$vuln_count" >> "$GITHUB_OUTPUT"
+        echo "scan_status=$scan_status" >> "$GITHUB_OUTPUT"
+
+        if [ "${{ inputs.format }}" = "json" ]; then
+          if [ -n "${{ inputs.report_file }}" ]; then
+            python - "$json_report" "${{ inputs.report_file }}" <<'PY'
+import shutil
+import sys
+
+shutil.copyfile(sys.argv[1], sys.argv[2])
+PY
+          else
+            python - "$json_report" <<'PY'
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    sys.stdout.write(fh.read())
+PY
+          fi
+        else
+          rendered_report="$(mktemp)"
+          set +e
+          python -m pip_audit -r "${{ inputs.requirements_file }}" --format "${{ inputs.format }}" --output "$rendered_report"
+          rendered_exit_code=$?
+          set -e
+
+          if [ ! -s "$rendered_report" ]; then
+            echo "pip-audit failed to generate the requested ${{ inputs.format }} report." >&2
+            exit "${rendered_exit_code:-1}"
+          fi
+
+          if [ -n "${{ inputs.report_file }}" ]; then
+            python - "$rendered_report" "${{ inputs.report_file }}" <<'PY'
+import shutil
+import sys
+
+shutil.copyfile(sys.argv[1], sys.argv[2])
+PY
+          else
+            python - "$rendered_report" <<'PY'
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    sys.stdout.write(fh.read())
+PY
+          fi
+        fi
+
+        if [ "$scan_status" = "scanner_error" ]; then
+          echo "pip-audit failed due to a scanner or runtime error (exit code: $audit_exit_code)." >&2
+          exit "${audit_exit_code:-1}"
+        fi
+
+        if [ "$vuln_count" -gt 0 ]; then
+          echo "pip-audit found $vuln_count vulnerabilities." >&2
+          if [ "${{ inputs.fail_on_vuln }}" = "true" ]; then
+            exit 1
+          fi
+          echo "fail_on_vuln=false so the action will continue." >&2
+          exit 0
+        fi
+
+        echo "No vulnerabilities found."
