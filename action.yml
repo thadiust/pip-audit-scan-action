@@ -48,19 +48,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ inputs.python_version }}
-
-    - name: Install pip-audit
-      shell: bash
-      working-directory: ${{ inputs.working_directory }}
-      run: |
-        set -euo pipefail
-        python -m pip install --upgrade pip
-        python -m pip install "pip-audit==${{ inputs.pip_audit_version }}"
-
     - name: Validate inputs
       shell: bash
       working-directory: ${{ inputs.working_directory }}
@@ -85,6 +72,18 @@ runs:
             exit 1
             ;;
         esac
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python_version }}
+
+    - name: Install pip-audit
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        set -euo pipefail
+        python -m pip install --disable-pip-version-check -q "pip-audit==${{ inputs.pip_audit_version }}"
 
     - name: Run pip-audit
       id: audit
@@ -133,7 +132,7 @@ runs:
           if [ -n "${{ inputs.report_file }}" ]; then
             cp "$json_report" "${{ inputs.report_file }}"
           else
-            sed -n '1,$p' "$json_report"
+            cat "$json_report"
           fi
         else
           rendered_report="$(mktemp)"
@@ -150,7 +149,7 @@ runs:
           if [ -n "${{ inputs.report_file }}" ]; then
             cp "$rendered_report" "${{ inputs.report_file }}"
           else
-            sed -n '1,$p' "$rendered_report"
+            cat "$rendered_report"
           fi
         fi
 
