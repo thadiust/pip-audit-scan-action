@@ -26,7 +26,7 @@ The action always runs pip-audit once with **`--format json`** internally to com
 | `requirements_file` | `requirements.txt` | Path relative to **`working_directory`** (passed to `pip-audit -r`). |
 | `format` | `columns` | Report format: `columns`, `json`, `cyclonedx-json`, `cyclonedx-xml`, or `markdown`. |
 | `report_file` | *(empty)* | If set, write the rendered report to this path relative to **`working_directory`** instead of only printing to the log. |
-| `fail_on_vuln` | `false` | If `true`, exit **1** when any vulnerability is found. Reusable workflows often set this to **`true`** for fail-closed CI. |
+| `fail_on_vuln` | `true` | If `true`, exit **1** when any vulnerability is found (default fail-closed). Set **`false`** for reporting-only jobs. |
 
 ## Outputs
 

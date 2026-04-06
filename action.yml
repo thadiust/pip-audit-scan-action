@@ -41,9 +41,9 @@ inputs:
     default: ""
 
   fail_on_vuln:
-    description: "Fail the action if vulnerabilities are found"
+    description: "Fail the action if vulnerabilities are found (fail-closed default for CI; set false for reporting-only)"
     required: false
-    default: "false"
+    default: "true"
 
 runs:
   using: "composite"
