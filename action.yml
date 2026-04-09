@@ -50,10 +50,47 @@ runs:
   steps:
     - name: Validate inputs
       shell: bash
-      working-directory: ${{ inputs.working_directory }}
       run: |
         set -euo pipefail
-        test -f "${{ inputs.requirements_file }}"
+        WD="${{ inputs.working_directory }}"
+        if [ -z "$WD" ]; then
+          echo "working_directory must be a non-empty relative path." >&2
+          exit 1
+        fi
+        case "$WD" in
+          /*)
+            echo "working_directory must be relative (no leading slash): $WD" >&2
+            exit 1
+            ;;
+        esac
+        if [[ "$WD" =~ (^|/)\.\.(/|$) ]]; then
+          echo "working_directory must not traverse parents (..): $WD" >&2
+          exit 1
+        fi
+        if [ ! -d "$GITHUB_WORKSPACE/$WD" ]; then
+          echo "working_directory not found or not a directory: $WD" >&2
+          exit 1
+        fi
+
+        REQ="${{ inputs.requirements_file }}"
+        if [ -z "$REQ" ]; then
+          echo "requirements_file must be a non-empty relative path." >&2
+          exit 1
+        fi
+        case "$REQ" in
+          /*)
+            echo "requirements_file must be relative (no leading slash): $REQ" >&2
+            exit 1
+            ;;
+        esac
+        if [[ "$REQ" =~ (^|/)\.\.(/|$) ]]; then
+          echo "requirements_file must not traverse parents (..): $REQ" >&2
+          exit 1
+        fi
+        if [ ! -f "$GITHUB_WORKSPACE/$WD/$REQ" ]; then
+          echo "requirements_file not found: $WD/$REQ" >&2
+          exit 1
+        fi
 
         case "${{ inputs.format }}" in
           columns|json|cyclonedx-json|cyclonedx-xml|markdown)
@@ -72,6 +109,20 @@ runs:
             exit 1
             ;;
         esac
+
+        REPORT_FILE="${{ inputs.report_file }}"
+        if [ -n "$REPORT_FILE" ]; then
+          case "$REPORT_FILE" in
+            /*)
+              echo "report_file must be relative (no leading slash): $REPORT_FILE" >&2
+              exit 1
+              ;;
+          esac
+          if [[ "$REPORT_FILE" =~ (^|/)\.\.(/|$) ]]; then
+            echo "report_file must not traverse parents (..): $REPORT_FILE" >&2
+            exit 1
+          fi
+        fi
 
     - name: Setup Python
       uses: actions/setup-python@v6
