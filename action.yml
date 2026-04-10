@@ -146,6 +146,10 @@ runs:
         json_report="$(mktemp)"
         rendered_report=""
 
+        if [ -n "${{ inputs.report_file }}" ] && [[ "${{ inputs.report_file }}" == */* ]]; then
+          mkdir -p "$(dirname -- "${{ inputs.report_file }}")"
+        fi
+
         cleanup() {
           rm -f "$json_report"
           if [ -n "$rendered_report" ]; then
