@@ -44,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: thadiust/pip-audit-scan-action@v1.0.0
+      - uses: thadiust/pip-audit-scan-action@main
         with:
           working_directory: "."
           requirements_file: "requirements.txt"
@@ -56,7 +56,7 @@ jobs:
 With **`report_file`** (for example for artifacts):
 
 ```yaml
-      - uses: thadiust/pip-audit-scan-action@v1.0.0
+      - uses: thadiust/pip-audit-scan-action@main
         with:
           requirements_file: "requirements.txt"
           format: "cyclonedx-json"
