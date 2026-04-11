@@ -134,7 +134,14 @@ runs:
       working-directory: ${{ inputs.working_directory }}
       run: |
         set -euo pipefail
-        python -m pip install --disable-pip-version-check -q "pip-audit==${{ inputs.pip_audit_version }}"
+        PV="${{ inputs.pip_audit_version }}"
+        CF="${GITHUB_ACTION_PATH}/constraints/pip-audit-${PV}.txt"
+        if [ -f "$CF" ]; then
+          python -m pip install --disable-pip-version-check -q --require-hashes -r "$CF"
+        else
+          echo "::warning title=Supply chain::No hash constraints for pip-audit==${PV} (expected ${CF}). Using pip without --require-hashes. Run scripts/refresh-pip-constraints.sh after bumping the default version." >&2
+          python -m pip install --disable-pip-version-check -q "pip-audit==${PV}"
+        fi
 
     - name: Run pip-audit
       id: audit

@@ -16,12 +16,16 @@ The action always runs pip-audit once with **`--format json`** internally to com
 - **`requirements_file`** must exist under **`working_directory`** before the action runs (the action validates this).
 - Pin **`pip_audit_version`** if you want reproducible CI as pip-audit and the advisory data evolve.
 
+### Pip hash pinning
+
+For the **default** **`pip_audit_version`** (**`2.7.3`**), the action installs from **`constraints/pip-audit-2.7.3.txt`** with **`pip --require-hashes`**. Other versions log a **`::warning`** and use an unhashed **`pip install`**. After bumping the default in **`action.yml`**, run **`scripts/refresh-pip-constraints.sh`** and commit the updated **`constraints/*.txt`**.
+
 ## Inputs
 
 | Input | Default | Description |
 |--------|---------|-------------|
 | `python_version` | `3.11` | Python version for `actions/setup-python`. |
-| `pip_audit_version` | `2.7.3` | Exact pip-audit version installed with `pip install pip-audit==…`. |
+| `pip_audit_version` | `2.7.3` | Exact pip-audit version; default uses **`pip --require-hashes`** when **`constraints/pip-audit-2.7.3.txt`** is present. |
 | `working_directory` | `.` | Directory that contains the requirements file. |
 | `requirements_file` | `requirements.txt` | Path relative to **`working_directory`** (passed to `pip-audit -r`). |
 | `format` | `columns` | Report format: `columns`, `json`, `cyclonedx-json`, `cyclonedx-xml`, or `markdown`. |
