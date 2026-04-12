@@ -8,7 +8,7 @@ Composite GitHub Action that runs **[pip-audit](https://github.com/pypa/pip-audi
 - **`vuln_count > 0`** → `scan_status=vulnerabilities_found`. If **`fail_on_vuln`** is **`true`**, the step exits **1**; if **`false`**, the step exits **0** after logging the count (useful for reporting-only jobs).
 - **pip-audit errors or empty JSON** → `scan_status=scanner_error`, step exits with pip-audit’s exit code.
 
-The action always runs pip-audit once with **`--format json`** internally to compute **`vuln_count`**. If **`format`** is not **`json`**, it runs pip-audit again to produce the human-readable or SBOM output you asked for (or to write **`report_file`**).
+The action always runs pip-audit once with **`--format json`** internally to compute **`vuln_count`**. If **`format`** is not **`json`**, it runs pip-audit again to produce the human-readable or SBOM output you asked for (or to write **`report_file`**). That **second** pass is **cost/latency only** (no correctness issue); a future optimization could reduce duplicate work.
 
 ## Caller responsibilities
 

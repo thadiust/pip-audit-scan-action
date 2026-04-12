@@ -6,6 +6,7 @@ All notable changes to **pip-audit-scan-action** (`scan-pip-audit`) are document
 
 ### Added
 
+- **CI:** **`verify-default-constraints`** job in **`actionlint.yml`** — fails if **`action.yml`** default **`pip_audit_version`** lacks **`constraints/pip-audit-<version>.txt`**.
 - **`constraints/pip-audit-2.7.3.txt`**: **`pip install --require-hashes`** for the default **`pip_audit_version`**; other versions log **`::warning`**. **`scripts/refresh-pip-constraints.sh`** regenerates after bumps.
 
 ## [1.0.1] — 2026-04-09
