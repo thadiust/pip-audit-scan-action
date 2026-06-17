@@ -166,7 +166,7 @@ runs:
         trap cleanup EXIT
 
         set +e
-        python -m pip_audit -r "${{ inputs.requirements_file }}" --format json --output "$json_report"
+        python -m pip_audit -r "${{ inputs.requirements_file }}" --strict --format json --output "$json_report"
         audit_exit_code=$?
         set -e
 
@@ -175,11 +175,14 @@ runs:
           exit "${audit_exit_code:-1}"
         fi
 
-        vuln_count="$(
-          python -c "import json, sys; data = json.load(open(sys.argv[1], encoding='utf-8')); print(sum(len(dep.get('vulns', []) or dep.get('vulnerabilities', []) or []) for dep in data.get('dependencies', []) if isinstance(dep, dict)))" "$json_report"
-        )"
+        read -r vuln_count skip_count < <(
+          python -c "import json, sys; data = json.load(open(sys.argv[1], encoding='utf-8')); deps = [d for d in data.get('dependencies', []) if isinstance(d, dict)]; skipped = sum(1 for d in deps if d.get('skip_reason')); vulns = sum(len(d.get('vulns', []) or d.get('vulnerabilities', []) or []) for d in deps); print(vulns, skipped)" "$json_report"
+        )
 
-        if [ "$vuln_count" -gt 0 ]; then
+        if [ "$skip_count" -gt 0 ]; then
+          echo "pip-audit skipped $skip_count dependencies (unresolved or unpinned)." >&2
+          scan_status="scanner_error"
+        elif [ "$vuln_count" -gt 0 ]; then
           scan_status="vulnerabilities_found"
         elif [ "$audit_exit_code" -eq 0 ]; then
           scan_status="clean"
@@ -199,7 +202,7 @@ runs:
         else
           rendered_report="$(mktemp)"
           set +e
-          python -m pip_audit -r "${{ inputs.requirements_file }}" --format "${{ inputs.format }}" --output "$rendered_report"
+          python -m pip_audit -r "${{ inputs.requirements_file }}" --strict --format "${{ inputs.format }}" --output "$rendered_report"
           rendered_exit_code=$?
           set -e
 
@@ -216,7 +219,11 @@ runs:
         fi
 
         if [ "$scan_status" = "scanner_error" ]; then
-          echo "pip-audit failed due to a scanner or runtime error (exit code: $audit_exit_code)." >&2
+          if [ "$skip_count" -gt 0 ]; then
+            echo "pip-audit skipped $skip_count dependencies; audit incomplete." >&2
+          else
+            echo "pip-audit failed due to a scanner or runtime error (exit code: $audit_exit_code)." >&2
+          fi
           exit "${audit_exit_code:-1}"
         fi
 
